@@ -28,7 +28,7 @@ public class Server {
         while (true) {
             try {
                 Socket socket = listener.accept();
-                // TODO:检查该socket对应的地址是不是对应了太多连接
+                // TODO:妫�鏌ヨsocket瀵瑰簲鐨勫湴鍧�鏄笉鏄搴斾簡澶杩炴帴
                 mThreadPool.execute(new ServerWorker(socket));
             } catch (IOException e) {
                 e.printStackTrace();

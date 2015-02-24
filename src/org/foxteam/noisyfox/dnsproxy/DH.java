@@ -5,10 +5,10 @@ import java.security.SecureRandom;
 
 /**
  * Created by Noisyfox on 2015/2/24.
- * Diffie-Hellman ÃÜÔ¿½»»»Àà£¬ÃÜÔ¿³¤¶È2048Î»
+ * Diffie-Hellman å¯†é’¥äº¤æ¢ç±»ï¼Œå¯†é’¥é•¿åº¦2048ä½
  */
 public class DH {
-    private static final int MODP_2048_I[] = {0x0, // ±£Ö¤ÕıÊı
+    private static final int MODP_2048_I[] = {0x0, // ä¿è¯æ­£æ•°
             0xFFFFFFFF, 0xFFFFFFFF, 0xC90FDAA2, 0x2168C234, 0xC4C6628B, 0x80DC1CD1,
             0x29024E08, 0x8A67CC74, 0x020BBEA6, 0x3B139B22, 0x514A0879, 0x8E3404DD,
             0xEF9519B3, 0xCD3A431B, 0x302B0A6D, 0xF25F1437, 0x4FE1356D, 0x6D51C245,
@@ -57,12 +57,12 @@ public class DH {
     public void generateKeyPair() {
         mPrivateKey = null;
         mPublicKey = null;
-        // ´´½¨Ë½Ô¿
+        // åˆ›å»ºç§é’¥
         do {
             mPrivateKey = BigInteger.probablePrime(mLength, mSecureRandom);
         } while (mPrivateKey.compareTo(BigInteger.ONE) < 0 || mPrivateKey.compareTo(MODP_2048_M2) > 0);
 
-        // ´´½¨¹«Ô¿
+        // åˆ›å»ºå…¬é’¥
         mPublicKey = G.modPow(mPrivateKey, MODP_2048);
     }
 

@@ -22,7 +22,7 @@ public class Client {
         }
 
         while (true) {
-            // Á¬½Ó·şÎñÆ÷
+            // è¿æ¥æœåŠ¡å™¨
             try {
                 Socket mServerConnection = new Socket(mServerAddress, mServerPort);
                 ClientWorker clientWorker = new ClientWorker(mServerConnection);
