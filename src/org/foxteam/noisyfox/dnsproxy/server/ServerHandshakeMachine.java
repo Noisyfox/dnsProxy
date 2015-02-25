@@ -2,6 +2,7 @@ package org.foxteam.noisyfox.dnsproxy.server;
 
 import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.cpm.CheckPointMachine;
+import org.foxteam.noisyfox.dnsproxy.crypto.HKDF;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -86,7 +87,8 @@ public class ServerHandshakeMachine extends CheckPointMachine {
 
         BigInteger clientPublicKey = DH.bytesToBigIntegerPositive(publicKey);
 
-        mS = DH.paddingTo2048(DH.calculateS(mDH.getPrivateKey(), clientPublicKey).toByteArray());
+        byte ikm[] = DH.paddingTo2048(DH.calculateS(mDH.getPrivateKey(), clientPublicKey).toByteArray());
+        mS = HKDF.doHKDF(ikm, 256); // 导出密钥
     }
 
     /**
