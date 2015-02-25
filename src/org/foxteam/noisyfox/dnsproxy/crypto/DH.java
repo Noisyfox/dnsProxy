@@ -1,4 +1,4 @@
-package org.foxteam.noisyfox.dnsproxy;
+package org.foxteam.noisyfox.dnsproxy.crypto;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;

@@ -1,6 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
-import org.foxteam.noisyfox.dnsproxy.DH;
+import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.cpm.CheckPointMachine;
 
 import java.io.IOException;
@@ -52,11 +52,13 @@ public class ClientHandshakeMachine extends CheckPointMachine {
                 }
                 setCheckPoint(STAT_TEST);
             case STAT_TEST:
+                test();
                 finish();
         }
     }
 
     private static final int DATA_SIZE_HELLO = 2048 / 8 + 4;
+    private static final int DATA_SIZE_TEST = 1024 / 8 + 4;
 
     /**
      * say hello with dh public key
@@ -113,8 +115,12 @@ public class ClientHandshakeMachine extends CheckPointMachine {
      * 产生一段随机的字符串，将其发送给服务器，
      * 服务器解密后计算字符串的hash，并加密发送回客户端
      * 客户端解密后通过比对hash，以确认密钥是否正确
+     *
+     * 校验数据的格式：
+     * O1H, 00H, 01H, 02H //4字节前缀
+     * xxxxxxxxxxxxxxxxxx //2048位 public key
      */
     private void test(){
-
+        //byte testBytes = new byte[];
     }
 }

@@ -1,6 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.server;
 
-import org.foxteam.noisyfox.dnsproxy.DH;
+import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.cpm.CheckPointMachine;
 
 import java.io.IOException;

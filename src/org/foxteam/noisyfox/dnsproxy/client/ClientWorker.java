@@ -1,6 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
-import org.foxteam.noisyfox.dnsproxy.DH;
+import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +29,7 @@ public class ClientWorker extends Thread {
                 e.printStackTrace();
             }
         }
+        System.out.println("ClientWorker done!");
     }
 
     private void doJob() {
@@ -56,6 +57,7 @@ public class ClientWorker extends Thread {
             return;
         }
 
+        System.out.println("ClientWorker handshake success!");
         // 握手完成，开始加密传输
 
     }
