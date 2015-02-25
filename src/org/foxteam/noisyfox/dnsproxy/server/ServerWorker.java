@@ -46,7 +46,7 @@ public class ServerWorker implements Runnable {
         // 首先，协商加密
         // 创建dh密钥对
         SecureRandom rnd = new SecureRandom();
-        DH dh = new DH(512, rnd);
+        DH dh = new DH(256, rnd);
         dh.generateKeyPair();
         // 开始握手
         ServerHandshakeMachine handshakeMachine = new ServerHandshakeMachine(inputStream, outputStream, dh);

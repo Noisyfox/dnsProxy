@@ -109,7 +109,7 @@ public class ClientHandshakeMachine extends CheckPointMachine {
         BigInteger serverPublicKey = DH.bytesToBigIntegerPositive(publicKey);
 
         byte ikm[] = DH.paddingTo2048(DH.calculateS(mDH.getPrivateKey(), serverPublicKey).toByteArray());
-        mS = HKDF.doHKDF(ikm, 256); // 导出密钥
+        mS = HKDF.doHKDF(ikm, 128); // 导出密钥
     }
 
     /**
