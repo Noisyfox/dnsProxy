@@ -52,7 +52,11 @@ public class AESFrame {
         sendFrame.fillData("啊哈哈哈我是小狐狸！!!!!!!!!!".getBytes());
         ByteArrayInputStream inputStream = new ByteArrayInputStream(sendFrame.getEncryptBytes());
 
-        receiveFrame.readFromStream(inputStream);
+        try {
+            receiveFrame.readFromStream(inputStream);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         byte receiveBytes[] = new byte[receiveFrame.getPayloadSize()];
         receiveFrame.getPayloadData(receiveBytes);
@@ -175,16 +179,11 @@ public class AESFrame {
      *
      * @return 解码是否成功
      */
-    public boolean readFromStream(InputStream input) {
+    public boolean readFromStream(InputStream input) throws IOException {
         mEncryptLock.lock();
         try {
             // 先读2字节的长度数据
-            try {
-                readBytesExactly(input, TMP_READ, 0, 2);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
+            readBytesExactly(input, TMP_READ, 0, 2);
 
             int payloadSize = TMP_READ[0];
             payloadSize <<= 8;
@@ -200,20 +199,10 @@ public class AESFrame {
             }
 
             // 读取payload
-            try {
-                readBytesExactly(input, mPayload, 0, payloadSize);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
+            readBytesExactly(input, mPayload, 0, payloadSize);
 
             // 读取crc16
-            try {
-                readBytesExactly(input, TMP_READ, 0, 2);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
+            readBytesExactly(input, TMP_READ, 0, 2);
 
             // 计算CRC16
             CRC16.doCRC(mPayload, payloadSize, TMP_CRC16);
