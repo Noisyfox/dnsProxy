@@ -6,7 +6,6 @@ import org.foxteam.noisyfox.dnsproxy.crypto.CRC16;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
@@ -55,7 +54,9 @@ public class AESFrame {
 
         receiveFrame.readFromStream(inputStream);
 
-        String receiveData = new String(receiveFrame.mPayload);
+        byte receiveBytes[] = new byte[receiveFrame.getPayloadSize()];
+        receiveFrame.getPayloadData(receiveBytes);
+        String receiveData = new String(receiveBytes);
 
         System.out.println("aa");
     }
@@ -64,10 +65,8 @@ public class AESFrame {
     private final Key mKey;
     private Cipher mCipher = null;
 
-    // TODO:重写数组操作代码，以达到空间复用
     private int mPayloadLength;
     private byte[] mPayload;
-    private byte[] mCRC16;
 
     public AESFrame(byte[] key) {
         mKey = new SecretKeySpec(key, "AES");
@@ -79,10 +78,27 @@ public class AESFrame {
         }
     }
 
+    public int getPayloadSize() {
+        return mPayloadLength;
+    }
+
+    public int getPayloadData(byte dataOut[]) {
+        mEncryptLock.lock();
+        try {
+            if (dataOut.length < mPayloadLength) {
+                throw new IllegalArgumentException();
+            }
+
+            System.arraycopy(mPayload, 0, dataOut, 0, mPayloadLength);
+
+            return mPayloadLength;
+        } finally {
+            mEncryptLock.unlock();
+        }
+    }
+
     /**
      * 填充明文数据
-     *
-     * @param data
      */
     public void fillData(byte[] data) {
         fillData(data, 0, data.length);
@@ -97,15 +113,13 @@ public class AESFrame {
                 throw new IllegalArgumentException();
             }
 
-            byte payload[] = new byte[length];
-            System.arraycopy(data, offset, payload, 0, length);
+            // 复用以前的空间
+            if (mPayload == null || mPayload.length < length || mPayload.length > length * 2) {
+                mPayload = new byte[length];
+            }
+            System.arraycopy(data, offset, mPayload, 0, length);
+            Arrays.fill(mPayload, length, mPayload.length, (byte) 0);
 
-            //计算CRC16
-            byte crc16[] = new byte[2];
-            CRC16.doCRC(payload, length, crc16);
-
-            mPayload = payload;
-            mCRC16 = crc16;
             mPayloadLength = length;
         } finally {
             mEncryptLock.unlock();
@@ -120,19 +134,22 @@ public class AESFrame {
         try {
             mCipher.init(Cipher.ENCRYPT_MODE, mKey, IV_PARAMETER_SPEC);
             // 加密payload
-            byte payloadEnc[] = mCipher.doFinal(mPayload);
+            byte payloadEnc[] = mCipher.doFinal(mPayload, 0, mPayloadLength);
             int payloadLength = payloadEnc.length;
 
             // 构造完整帧数据
-            int totalLength = 2 + payloadEnc.length + 2;
+            int totalLength = 2 + payloadLength + 2;
             byte frame[] = new byte[totalLength];
             frame[0] = (byte) ((payloadLength >> 8) & 0xff);
             frame[1] = (byte) (payloadLength & 0xff);
 
-            System.arraycopy(payloadEnc, 0, frame, 2, payloadEnc.length);
+            System.arraycopy(payloadEnc, 0, frame, 2, payloadLength);
 
-            frame[totalLength - 2] = mCRC16[0];
-            frame[totalLength - 1] = mCRC16[1];
+            // 计算CRC16
+            CRC16.doCRC(payloadEnc, payloadLength, TMP_CRC16);
+
+            frame[totalLength - 2] = TMP_CRC16[0];
+            frame[totalLength - 1] = TMP_CRC16[1];
 
             return frame;
         } catch (InvalidAlgorithmParameterException e) {
@@ -150,39 +167,41 @@ public class AESFrame {
         return null;
     }
 
-
     private final byte TMP_CRC16[] = new byte[2];
+    private final byte TMP_READ[] = new byte[2];
 
     /**
      * 从一个流中解码1帧数据
      *
-     * @param input
      * @return 解码是否成功
      */
     public boolean readFromStream(InputStream input) {
         mEncryptLock.lock();
         try {
             // 先读2字节的长度数据
-            byte b2[] = new byte[2];
             try {
-                readBytesExactly(input, b2, 0, 2);
+                readBytesExactly(input, TMP_READ, 0, 2);
             } catch (IOException e) {
                 e.printStackTrace();
                 return false;
             }
 
-            int payloadSize = b2[0];
+            int payloadSize = TMP_READ[0];
             payloadSize <<= 8;
-            payloadSize |= b2[1];
+            payloadSize |= TMP_READ[1];
             payloadSize &= 0xFFFF;
             if (payloadSize <= 0) {
                 return false;
             }
 
+            // 计算最大长度
+            if (mPayload == null || mPayload.length < payloadSize || mPayload.length > payloadSize * 2) {
+                mPayload = new byte[payloadSize];
+            }
+
             // 读取payload
-            byte payload[] = new byte[payloadSize];
             try {
-                readBytesExactly(input, payload, 0, payloadSize);
+                readBytesExactly(input, mPayload, 0, payloadSize);
             } catch (IOException e) {
                 e.printStackTrace();
                 return false;
@@ -190,30 +209,28 @@ public class AESFrame {
 
             // 读取crc16
             try {
-                readBytesExactly(input, b2, 0, 2);
+                readBytesExactly(input, TMP_READ, 0, 2);
             } catch (IOException e) {
                 e.printStackTrace();
                 return false;
             }
 
-            // 解密数据
-            mCipher.init(Cipher.DECRYPT_MODE, mKey, IV_PARAMETER_SPEC);
-            payload = mCipher.doFinal(payload);
-            payloadSize = payload.length;
-
             // 计算CRC16
-            CRC16.doCRC(payload, payloadSize, TMP_CRC16);
+            CRC16.doCRC(mPayload, payloadSize, TMP_CRC16);
             // 验证CRC16
-            if (TMP_CRC16[0] != b2[0] || TMP_CRC16[1] != b2[1]) {
+            if (TMP_CRC16[0] != TMP_READ[0] || TMP_CRC16[1] != TMP_READ[1]) {
                 return false;
             }
 
-            byte payload_dec[] = new byte[payloadSize];
-            System.arraycopy(payload, 0, payload_dec, 0, payloadSize);
+            // 解密数据
+            mCipher.init(Cipher.DECRYPT_MODE, mKey, IV_PARAMETER_SPEC);
+            byte payload_dec[] = mCipher.doFinal(mPayload, 0, payloadSize);
+
+            payloadSize = payload_dec.length;
+            System.arraycopy(payload_dec, 0, mPayload, 0, payloadSize);
+            Arrays.fill(mPayload, payloadSize, mPayload.length, (byte) 0);
 
             mPayloadLength = payloadSize;
-            mPayload = payload_dec;
-            mCRC16 = Arrays.copyOf(TMP_CRC16, 2);
 
             return true;
 
