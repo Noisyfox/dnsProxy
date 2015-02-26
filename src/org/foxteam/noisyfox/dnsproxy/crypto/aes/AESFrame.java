@@ -89,10 +89,6 @@ public class AESFrame {
     public int getPayloadData(byte dataOut[]) {
         mEncryptLock.lock();
         try {
-            if (dataOut.length < mPayloadLength) {
-                throw new IllegalArgumentException();
-            }
-
             System.arraycopy(mPayload, 0, dataOut, 0, mPayloadLength);
 
             return mPayloadLength;
