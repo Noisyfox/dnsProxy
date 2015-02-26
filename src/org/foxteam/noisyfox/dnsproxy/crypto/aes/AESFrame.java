@@ -177,20 +177,26 @@ public class AESFrame {
     /**
      * 从一个流中解码1帧数据
      *
-     * @return 解码是否成功
+     * @return 解码后的数据长度，-1代表流结束
      */
-    public boolean readFromStream(InputStream input) throws IOException {
+    public int readFromStream(InputStream input) throws IOException {
         mEncryptLock.lock();
         try {
             // 先读2字节的长度数据
-            readBytesExactly(input, TMP_READ, 0, 2);
+            int bRead = readBytesExactly(input, TMP_READ, 0, 2);
+            if (bRead == 0) { // 流结束
+                return -1;
+            }
+            if (bRead != 2) {
+                throw new IOException("Unexpected stream end!");
+            }
 
             int payloadSize = TMP_READ[0];
             payloadSize <<= 8;
             payloadSize |= TMP_READ[1];
             payloadSize &= 0xFFFF;
             if (payloadSize <= 0) {
-                return false;
+                throw new IOException("Unexpected payload size " + payloadSize);
             }
 
             // 计算最大长度
@@ -199,16 +205,22 @@ public class AESFrame {
             }
 
             // 读取payload
-            readBytesExactly(input, mPayload, 0, payloadSize);
+            bRead = readBytesExactly(input, mPayload, 0, payloadSize);
+            if (bRead != payloadSize) {
+                throw new IOException("Unexpected stream end!");
+            }
 
             // 读取crc16
-            readBytesExactly(input, TMP_READ, 0, 2);
+            bRead = readBytesExactly(input, TMP_READ, 0, 2);
+            if (bRead != 2) {
+                throw new IOException("Unexpected stream end!");
+            }
 
             // 计算CRC16
             CRC16.doCRC(mPayload, payloadSize, TMP_CRC16);
             // 验证CRC16
             if (TMP_CRC16[0] != TMP_READ[0] || TMP_CRC16[1] != TMP_READ[1]) {
-                return false;
+                throw new IOException("CRC mismatch");
             }
 
             // 解密数据
@@ -221,8 +233,7 @@ public class AESFrame {
 
             mPayloadLength = payloadSize;
 
-            return true;
-
+            return mPayloadLength;
         } catch (InvalidAlgorithmParameterException e) {
             e.printStackTrace();
         } catch (InvalidKeyException e) {
@@ -234,18 +245,22 @@ public class AESFrame {
         } finally {
             mEncryptLock.unlock();
         }
-        return false;
+        throw new IOException("Unknown error");
     }
 
-    private static void readBytesExactly(InputStream inputStreams, byte[] bytes, int offset, int length) throws IOException {
+    private static int readBytesExactly(InputStream inputStreams, byte[] bytes, int offset, int length) throws IOException {
+        int totalLength = 0;
         while (length > 0) {
             int bRead = inputStreams.read(bytes, offset, length);
             if (bRead == -1) {
-                throw new IOException("Unexpected stream end!");
+                break;
             }
 
+            totalLength += bRead;
             offset += bRead;
             length -= bRead;
         }
+
+        return totalLength;
     }
 }
