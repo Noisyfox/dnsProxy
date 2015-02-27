@@ -1,5 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.crypto.aes;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.locks.ReentrantLock;
@@ -7,10 +8,9 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Created by Noisyfox on 2015/2/25.
  */
-public class AESInputStream extends InputStream {
+public class AESInputStream extends FilterInputStream {
 
     private final ReentrantLock mIOLock = new ReentrantLock();
-    private final InputStream mInput;
     private final AESFrame mFrame;
 
     private int mBufferIndex = 0;
@@ -18,7 +18,7 @@ public class AESInputStream extends InputStream {
     private byte mBuffer[] = null;
 
     public AESInputStream(InputStream in, byte key[], byte iv[]) {
-        mInput = in;
+        super(in);
         mFrame = new AESFrame(key, iv);
     }
 
@@ -28,7 +28,7 @@ public class AESInputStream extends InputStream {
         try {
             // 确认目前的 Buffer 还有剩余
             if (mBuffer == null || mBufferIndex >= mBufferContentLength) {
-                int newContentLength = mFrame.readFromStream(mInput);
+                int newContentLength = mFrame.readFromStream(in);
                 if (newContentLength == -1) {
                     return -1;
                 }
@@ -71,7 +71,7 @@ public class AESInputStream extends InputStream {
 
                 if (byteAvailable <= 0) { // buffer空或者读完
                     // read more
-                    int newContentLength = mFrame.readFromStream(mInput);
+                    int newContentLength = mFrame.readFromStream(in);
                     if (newContentLength == -1) {
                         if (hasByteRead) {
                             return readCount;
@@ -104,8 +104,21 @@ public class AESInputStream extends InputStream {
     }
 
     @Override
-    public void close() throws IOException {
-        mInput.close();
+    public boolean markSupported() {
+        return false;
     }
 
+    @Override
+    public synchronized void reset() throws IOException {
+        throw new IOException("mark/reset not supported");
+    }
+
+    @Override
+    public synchronized void mark(int readlimit) {
+    }
+
+    @Override
+    public int available() throws IOException {
+        return 0;
+    }
 }

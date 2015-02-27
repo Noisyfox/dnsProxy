@@ -1,6 +1,5 @@
 package org.foxteam.noisyfox.dnsproxy.crypto.aes;
 
-import java.io.BufferedOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
