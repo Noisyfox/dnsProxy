@@ -60,5 +60,7 @@ public class ServerWorker implements Runnable {
         System.out.println("ServerWorker handshake success!");
         // 握手完成，开始加密传输
 
+        outputStream = handshakeMachine.getEncryptedOutputStream();
+        inputStream = handshakeMachine.getEncrpytedInputStream();
     }
 }

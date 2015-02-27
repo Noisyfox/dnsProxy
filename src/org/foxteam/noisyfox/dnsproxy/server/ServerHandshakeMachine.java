@@ -172,4 +172,12 @@ public class ServerHandshakeMachine extends CheckPointMachine {
         // 从这里开始，连接正式建立
     }
 
+    public AESInputStream getEncrpytedInputStream() {
+        return mAESIn;
+    }
+
+    public AESOutputStream getEncryptedOutputStream() {
+        return mAESOut;
+    }
+
 }

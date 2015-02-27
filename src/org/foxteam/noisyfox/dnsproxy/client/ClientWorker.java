@@ -60,5 +60,7 @@ public class ClientWorker extends Thread {
         System.out.println("ClientWorker handshake success!");
         // 握手完成，开始加密传输
 
+        outputStream = handshakeMachine.getEncryptedOutputStream();
+        inputStream = handshakeMachine.getEncrpytedInputStream();
     }
 }
