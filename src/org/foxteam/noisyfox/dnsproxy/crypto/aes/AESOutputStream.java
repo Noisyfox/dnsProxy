@@ -19,9 +19,9 @@ public class AESOutputStream extends FilterOutputStream {
 
     private int mBufferIndex = 0;
 
-    public AESOutputStream(OutputStream out, byte key[]) {
+    public AESOutputStream(OutputStream out, byte key[], byte iv[]) {
         super(out);
-        mFrame = new AESFrame(key);
+        mFrame = new AESFrame(key, iv);
     }
 
     @Override

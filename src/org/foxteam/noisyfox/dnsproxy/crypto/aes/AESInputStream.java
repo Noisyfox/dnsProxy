@@ -17,9 +17,9 @@ public class AESInputStream extends InputStream {
     private int mBufferContentLength = 0;
     private byte mBuffer[] = null;
 
-    public AESInputStream(InputStream in, byte key[]) {
+    public AESInputStream(InputStream in, byte key[], byte iv[]) {
         mInput = in;
-        mFrame = new AESFrame(key);
+        mFrame = new AESFrame(key, iv);
     }
 
     @Override

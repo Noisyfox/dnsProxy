@@ -58,11 +58,18 @@ import java.util.Arrays;
 public class HKDF {
 
     private static final byte SALT_DEFAULT[] = bytes("我是小狐狸哈哈哈哈！@#%&^SDF$^^&UJT&@!%~!@*(JKLWER@!td jguu345");
-    private static final byte INFO_DEFAULT[] = bytes("NoisyfoxDNSProxy");
+    private static final byte INFO_DEFAULT[] = bytes("No44isyfox324DNS6fdgPro123xy9973267@$$))))*vdt 2");
+    private static final byte SALT_DEFAULT_IV[] = bytes("这是一个初始向量的默认SALT的说啦啦啦！@!#dfg678q4VX zg67~~@#!$:L|{P}780 cv3qg");
+    private static final byte INFO_DEFAULT_IV[] = bytes("N12o4isyfo54xDN3SPr423o432xy1654823!@#&cbnx");
 
     public static byte[] doHKDF(byte[] IKM, int len) {
         byte prk[] = hkdfExtract(SALT_DEFAULT, IKM);
         return hkdfExpand(prk, INFO_DEFAULT, len);
+    }
+
+    public static byte[] doHKDF_IV(byte[] IKM, int len) {
+        byte prk[] = hkdfExtract(SALT_DEFAULT_IV, IKM);
+        return hkdfExpand(prk, INFO_DEFAULT_IV, len);
     }
 
     public static final int BLOCKSIZE = 256 / 8;

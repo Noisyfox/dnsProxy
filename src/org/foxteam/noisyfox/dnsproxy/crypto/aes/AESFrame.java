@@ -30,14 +30,13 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class AESFrame {
 
-    private static final byte[] INIT_VECTOR = {0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x38,
+    private static final byte[] INIT_VECTOR_TEST = {0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x38,
             0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31}; // CBC初始向量
 
     private static final byte[] KEY_TEST_128 = {0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
             0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38}; // 测试用128bit key
 
     private static final String ALGORITHM = "AES/CBC/PKCS7Padding";
-    private static final IvParameterSpec IV_PARAMETER_SPEC = new IvParameterSpec(INIT_VECTOR);
 
     public static final int PAYLOAD_MAX_LENGTH = 0xFFFF; // (64K-1)B 最大长度
 
@@ -47,8 +46,8 @@ public class AESFrame {
     }
 
     public static void main(String args[]) {
-        AESFrame sendFrame = new AESFrame(KEY_TEST_128);
-        AESFrame receiveFrame = new AESFrame(KEY_TEST_128);
+        AESFrame sendFrame = new AESFrame(KEY_TEST_128, INIT_VECTOR_TEST);
+        AESFrame receiveFrame = new AESFrame(KEY_TEST_128, INIT_VECTOR_TEST);
 
         sendFrame.fillData("啊哈哈哈我是小狐狸！!!!!!!!!!".getBytes());
         ByteArrayInputStream inputStream = new ByteArrayInputStream(sendFrame.getEncryptBytes());
@@ -68,13 +67,15 @@ public class AESFrame {
 
     private ReentrantLock mEncryptLock = new ReentrantLock();
     private final Key mKey;
+    private final IvParameterSpec mIvParameterSpec;
     private Cipher mCipher = null;
 
     private int mPayloadLength;
     private byte[] mPayload;
 
-    public AESFrame(byte[] key) {
+    public AESFrame(byte[] key, byte[] vi) {
         mKey = new SecretKeySpec(key, "AES");
+        mIvParameterSpec = new IvParameterSpec(vi);
         try {
             mCipher = Cipher.getInstance(ALGORITHM, "BC");
         } catch (Exception e) {
@@ -133,7 +134,7 @@ public class AESFrame {
     public byte[] getEncryptBytes() {
         mEncryptLock.lock();
         try {
-            mCipher.init(Cipher.ENCRYPT_MODE, mKey, IV_PARAMETER_SPEC);
+            mCipher.init(Cipher.ENCRYPT_MODE, mKey, mIvParameterSpec);
             // 加密payload
             byte payloadEnc[] = mCipher.doFinal(mPayload, 0, mPayloadLength);
             int payloadLength = payloadEnc.length;
@@ -221,7 +222,7 @@ public class AESFrame {
             }
 
             // 解密数据
-            mCipher.init(Cipher.DECRYPT_MODE, mKey, IV_PARAMETER_SPEC);
+            mCipher.init(Cipher.DECRYPT_MODE, mKey, mIvParameterSpec);
             byte payload_dec[] = mCipher.doFinal(mPayload, 0, payloadSize);
 
             payloadSize = payload_dec.length;

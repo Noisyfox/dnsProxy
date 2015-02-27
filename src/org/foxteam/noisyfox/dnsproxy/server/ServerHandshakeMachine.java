@@ -98,9 +98,10 @@ public class ServerHandshakeMachine extends CheckPointMachine {
 
         byte ikm[] = DH.paddingTo2048(DH.calculateS(mDH.getPrivateKey(), clientPublicKey).toByteArray());
         byte S[] = HKDF.doHKDF(ikm, 128 / 8); // 导出密钥
+        byte IV[] = HKDF.doHKDF_IV(ikm, 128 / 8); // 导出初始向量
 
-        mAESIn = new AESInputStream(mInput, S);
-        mAESOut = new AESOutputStream(mOutput, S);
+        mAESIn = new AESInputStream(mInput, S, IV);
+        mAESOut = new AESOutputStream(mOutput, S, IV);
     }
 
     /**
