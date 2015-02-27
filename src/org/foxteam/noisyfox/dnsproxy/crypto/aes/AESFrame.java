@@ -1,6 +1,7 @@
 package org.foxteam.noisyfox.dnsproxy.crypto.aes;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.foxteam.noisyfox.dnsproxy.Utils;
 import org.foxteam.noisyfox.dnsproxy.crypto.CRC16;
 
 import javax.crypto.BadPaddingException;
@@ -179,7 +180,7 @@ public class AESFrame {
         mEncryptLock.lock();
         try {
             // 先读2字节的长度数据
-            int bRead = readBytesExactly(input, TMP_READ, 0, 2);
+            int bRead = Utils.readBytesExactly(input, TMP_READ, 0, 2);
             if (bRead == 0) { // 流结束
                 return -1;
             }
@@ -201,13 +202,13 @@ public class AESFrame {
             }
 
             // 读取payload
-            bRead = readBytesExactly(input, mPayload, 0, payloadSize);
+            bRead = Utils.readBytesExactly(input, mPayload, 0, payloadSize);
             if (bRead != payloadSize) {
                 throw new IOException("Unexpected stream end!");
             }
 
             // 读取crc16
-            bRead = readBytesExactly(input, TMP_READ, 0, 2);
+            bRead = Utils.readBytesExactly(input, TMP_READ, 0, 2);
             if (bRead != 2) {
                 throw new IOException("Unexpected stream end!");
             }
@@ -242,21 +243,5 @@ public class AESFrame {
             mEncryptLock.unlock();
         }
         throw new IOException("Unknown error");
-    }
-
-    private static int readBytesExactly(InputStream inputStreams, byte[] bytes, int offset, int length) throws IOException {
-        int totalLength = 0;
-        while (length > 0) {
-            int bRead = inputStreams.read(bytes, offset, length);
-            if (bRead == -1) {
-                break;
-            }
-
-            totalLength += bRead;
-            offset += bRead;
-            length -= bRead;
-        }
-
-        return totalLength;
     }
 }

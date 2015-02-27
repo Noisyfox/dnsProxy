@@ -6,15 +6,16 @@ package org.foxteam.noisyfox.dnsproxy.crypto;
  */
 public class CRC16 {
 
-    public static byte[] doCRC(byte[] data, int dataLen, byte[] pcrc) {
+    public static byte[] doCRC(byte[] data, int offset, int dataLen, byte[] pCRC, int pCRCOffset) {
         int CRC = 0x0000ffff;
         int POLYNOMIAL = 0x0000a001;
         int i, j;
 
         if (dataLen == 0) {
-            return pcrc;
+            return pCRC;
         }
-        for (i = 0; i < dataLen; i++) {
+        int endIndex = offset + dataLen;
+        for (i = offset; i < endIndex; i++) {
             CRC ^= ((int) data[i] & 0x000000ff);
             for (j = 0; j < 8; j++) {
                 if ((CRC & 0x00000001) != 0) {
@@ -26,10 +27,14 @@ public class CRC16 {
             }
         }
 
-        pcrc[0] = (byte) (CRC & 0x00ff);
-        pcrc[1] = (byte) (CRC >> 8);
+        pCRC[pCRCOffset] = (byte) (CRC & 0xff);
+        pCRC[pCRCOffset + 1] = (byte) ((CRC >> 8) & 0xff);
 
-        return pcrc;
+        return pCRC;
+    }
+
+    public static byte[] doCRC(byte[] data, int dataLen, byte[] pCRC) {
+        return doCRC(data, 0, dataLen, pCRC, 0);
     }
 
     /**

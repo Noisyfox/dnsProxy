@@ -1,13 +1,18 @@
 package org.foxteam.noisyfox.dnsproxy.server;
 
+import org.foxteam.noisyfox.dnsproxy.Utils;
+import org.foxteam.noisyfox.dnsproxy.crypto.CRC16;
 import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.cpm.CheckPointMachine;
 import org.foxteam.noisyfox.dnsproxy.crypto.HKDF;
+import org.foxteam.noisyfox.dnsproxy.crypto.aes.AESInputStream;
+import org.foxteam.noisyfox.dnsproxy.crypto.aes.AESOutputStream;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
+import java.util.Random;
 
 /**
  * Created by Noisyfox on 2015/2/25.
@@ -22,7 +27,8 @@ public class ServerHandshakeMachine extends CheckPointMachine {
     private final InputStream mInput;
     private final OutputStream mOutput;
 
-    private byte mS[] = null;
+    private AESInputStream mAESIn;
+    private AESOutputStream mAESOut;
 
     public ServerHandshakeMachine(InputStream inputStream, OutputStream outputStream, DH dh) {
         super(STAT_INIT);
@@ -52,6 +58,12 @@ public class ServerHandshakeMachine extends CheckPointMachine {
                 }
                 setCheckPoint(STAT_TEST);
             case STAT_TEST:
+                try {
+                    test();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    failImmediately();
+                }
                 finish();
         }
     }
@@ -88,13 +100,16 @@ public class ServerHandshakeMachine extends CheckPointMachine {
         BigInteger clientPublicKey = DH.bytesToBigIntegerPositive(publicKey);
 
         byte ikm[] = DH.paddingTo2048(DH.calculateS(mDH.getPrivateKey(), clientPublicKey).toByteArray());
-        mS = HKDF.doHKDF(ikm, 128); // 导出密钥
+        byte S[] = HKDF.doHKDF(ikm, 128 / 8); // 导出密钥
+
+        mAESIn = new AESInputStream(mInput, S);
+        mAESOut = new AESOutputStream(mOutput, S);
     }
 
     /**
      * say hello with dh public key
      * hello数据的格式：
-     * OOH, 01H, 02H, 03H //4字节前缀
+     * 00H, 01H, 02H, 03H //4字节前缀
      * xxxxxxxxxxxxxxxxxx //2048位 public key
      */
     private void sendHello() throws IOException {
@@ -108,6 +123,55 @@ public class ServerHandshakeMachine extends CheckPointMachine {
 
         mOutput.write(out);
         mOutput.flush();
+    }
+
+    /**
+     * 校验客户端发来的测试数据
+     * 同时向客户端发送校验数据
+     */
+    private void test() throws IOException {
+        byte test[] = new byte[14];
+        byte crc[] = new byte[2];
+
+        int count = Utils.readBytesExactly(mAESIn, test, 0, 12);
+        if (count != 12) {
+            throw new IOException("Unexpected stream end!");
+        }
+
+        if (test[0] != 0x01 || test[1] != 0x00 || test[2] != 0x01 || test[3] != 0x00) {
+            throw new IOException("Encrypt establish failed!");
+        }
+
+        CRC16.doCRC(test, 4, 8, crc, 0);
+        Random r = new Random();
+        r.nextBytes(test);
+
+        test[0] = 0x00;
+        test[1] = 0x01;
+        test[2] = 0x00;
+        test[3] = 0x01;
+        test[4] = crc[0];
+        test[5] = crc[1];
+
+        mAESOut.write(test, 0, 14);
+        mAESOut.flush();
+
+        CRC16.doCRC(test, 6, 8, crc, 0);
+
+        count = Utils.readBytesExactly(mAESIn, test, 0, 6);
+        if (count != 6) {
+            throw new IOException("Unexpected stream end!");
+        }
+
+        if (test[0] != 0x00 || test[1] != 0x00 || test[2] != 0x01 || test[3] != 0x01) {
+            throw new IOException("Encrypt establish failed!");
+        }
+
+        if (test[4] != crc[0] || test[5] != crc[1]) {
+            throw new IOException("Encrypt establish failed! CRC fail");
+        }
+
+        // 从这里开始，连接正式建立
     }
 
 }

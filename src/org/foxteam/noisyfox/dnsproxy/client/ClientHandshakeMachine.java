@@ -1,13 +1,18 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
+import org.foxteam.noisyfox.dnsproxy.Utils;
+import org.foxteam.noisyfox.dnsproxy.crypto.CRC16;
 import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.cpm.CheckPointMachine;
 import org.foxteam.noisyfox.dnsproxy.crypto.HKDF;
+import org.foxteam.noisyfox.dnsproxy.crypto.aes.AESInputStream;
+import org.foxteam.noisyfox.dnsproxy.crypto.aes.AESOutputStream;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigInteger;
+import java.util.Random;
 
 /**
  * Created by Noisyfox on 2015/2/25.
@@ -23,7 +28,8 @@ public class ClientHandshakeMachine extends CheckPointMachine {
     private final InputStream mInput;
     private final OutputStream mOutput;
 
-    private byte mS[] = null;
+    private AESInputStream mAESIn;
+    private AESOutputStream mAESOut;
 
     public ClientHandshakeMachine(InputStream inputStream, OutputStream outputStream, DH dh) {
         super(STAT_INIT);
@@ -53,7 +59,12 @@ public class ClientHandshakeMachine extends CheckPointMachine {
                 }
                 setCheckPoint(STAT_TEST);
             case STAT_TEST:
-                test();
+                try {
+                    test();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    failImmediately();
+                }
                 finish();
         }
     }
@@ -64,7 +75,7 @@ public class ClientHandshakeMachine extends CheckPointMachine {
     /**
      * say hello with dh public key
      * hello数据的格式：
-     * OOH, 01H, 02H, 03H //4字节前缀
+     * 00H, 01H, 02H, 03H //4字节前缀
      * xxxxxxxxxxxxxxxxxx //2048位 public key
      */
     private void sendHello() throws IOException {
@@ -109,7 +120,10 @@ public class ClientHandshakeMachine extends CheckPointMachine {
         BigInteger serverPublicKey = DH.bytesToBigIntegerPositive(publicKey);
 
         byte ikm[] = DH.paddingTo2048(DH.calculateS(mDH.getPrivateKey(), serverPublicKey).toByteArray());
-        mS = HKDF.doHKDF(ikm, 128); // 导出密钥
+        byte S[] = HKDF.doHKDF(ikm, 128 / 8); // 导出密钥
+
+        mAESIn = new AESInputStream(mInput, S);
+        mAESOut = new AESOutputStream(mOutput, S);
     }
 
     /**
@@ -117,12 +131,60 @@ public class ClientHandshakeMachine extends CheckPointMachine {
      * 产生一段随机的字符串，将其发送给服务器，
      * 服务器解密后计算字符串的hash，并加密发送回客户端
      * 客户端解密后通过比对hash，以确认密钥是否正确
-     *
-     * 校验数据的格式：
-     * O1H, 00H, 01H, 02H //4字节前缀
-     * xxxxxxxxxxxxxxxxxx //2048位 public key
+     * 同时对服务器发来的串做hash，返回给服务器校验
+     * <p/>
+     * 校验数据格式：
+     * 01H, 00H, 01H, 00H //4字节前缀
+     * xxxxxxxxxxxxxxxxxx //8字节随机串
+     * <p/>
+     * 返回数据格式:
+     * 00H, 01H, 00H, 01H //4字节前缀
+     * xxH, xxH           //2字节CRC16
+     * xxxxxxxxxxxxxxxxxx //8字节服务器随机串
+     * <p/>
+     * 连接建立串格式：
+     * 00H, 00H, 01H, 01H //4字节前缀
+     * xxH, xxH           //2字节服务器CRC16
      */
-    private void test(){
-        //byte testBytes = new byte[];
+    private void test() throws IOException {
+        Random r = new Random();
+        byte test[] = new byte[16];
+        r.nextBytes(test);
+        test[0] = 0x01;
+        test[1] = 0x00;
+        test[2] = 0x01;
+        test[3] = 0x00;
+
+        mAESOut.write(test, 0, 12);
+        mAESOut.flush();
+
+        CRC16.doCRC(test, 4, 8, test, 14);
+
+        int count = Utils.readBytesExactly(mAESIn, test, 0, 14);
+        if (count != 14) {
+            throw new IOException("Unexpected stream end!");
+        }
+
+        // 校验
+        if (test[0] != 0x00 || test[1] != 0x01
+                || test[2] != 0x00 || test[3] != 0x01) {
+            throw new IOException("Encrypt establish failed!");
+        }
+
+        if (test[4] != test[14] || test[5] != test[15]) {
+            throw new IOException("Encrypt establish failed! CRC fail");
+        }
+
+        // 生成服务器校验信息
+
+        CRC16.doCRC(test, 6, 8, test, 4);
+        test[0] = 0x00;
+        test[1] = 0x00;
+        test[2] = 0x01;
+        test[3] = 0x01;
+        mAESOut.write(test, 0, 6);
+        mAESOut.flush();
+
+        // 从这里开始，连接正式建立
     }
 }
