@@ -12,10 +12,13 @@ import java.security.SecureRandom;
  * Created by Noisyfox on 2015/2/24.
  */
 public class ClientWorker extends Thread {
-    private final Socket mServerSocket;
 
-    public ClientWorker(Socket serverSocket) {
+    private final Socket mServerSocket;
+    private final RequestFlinger mRequestFlinger;
+
+    public ClientWorker(Socket serverSocket, RequestFlinger requestFlinger) {
         mServerSocket = serverSocket;
+        mRequestFlinger = requestFlinger;
     }
 
     @Override
@@ -62,5 +65,16 @@ public class ClientWorker extends Thread {
 
         outputStream = handshakeMachine.getEncryptedOutputStream();
         inputStream = handshakeMachine.getEncrpytedInputStream();
+
+    }
+
+    /**
+     * 负责从服务器获取Respond并提交给RequestFlinger
+     */
+    private class RespondThread extends Thread{
+        @Override
+        public void run() {
+
+        }
     }
 }

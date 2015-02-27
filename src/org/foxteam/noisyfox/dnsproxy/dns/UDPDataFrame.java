@@ -19,6 +19,9 @@ import java.util.concurrent.locks.ReentrantLock;
 public class UDPDataFrame {
 
     private final ReentrantLock mIOLock = new ReentrantLock();
+    private final byte TMP_BYTE4[] = new byte[4];
+
+    private long mTimeStamp;
 
     private int mPort;
     private int mDataLength;
@@ -30,6 +33,14 @@ public class UDPDataFrame {
 
     public int getPort() {
         return mPort;
+    }
+
+    public long getTimeStamp() {
+        return mTimeStamp;
+    }
+
+    public int getDataLength(){
+        return mDataLength;
     }
 
     public void fillData(byte data[]) {
@@ -46,12 +57,16 @@ public class UDPDataFrame {
             Arrays.fill(mData, length, mData.length, (byte) 0x0);
 
             mDataLength = length;
+
+            mTimeStamp = System.currentTimeMillis();
         } finally {
             mIOLock.unlock();
         }
     }
 
-    private final byte TMP_BYTE4[] = new byte[4];
+    public void readData(byte data[]){
+        System.arraycopy(mData, 0, data, 0, mDataLength);
+    }
 
     public void writeToStream(OutputStream output) throws IOException {
         mIOLock.lock();
@@ -97,6 +112,8 @@ public class UDPDataFrame {
                 throw new IOException("Unexpected stream end!");
             }
             Arrays.fill(mData, mDataLength, mData.length, (byte) 0x0);
+
+            mTimeStamp = System.currentTimeMillis();
 
             return mDataLength;
         } finally {
