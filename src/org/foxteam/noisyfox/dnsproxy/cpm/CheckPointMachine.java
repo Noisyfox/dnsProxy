@@ -12,11 +12,15 @@ public abstract class CheckPointMachine {
     private boolean mIsFinished = false;
     private boolean mSuccess = false;
     private final Stack<Integer> mCheckPoints = new Stack<Integer>();
-    //private final int mInitCheckPoint;
+    private int mMaxFailCount;
 
     public CheckPointMachine(int initCheckPoint) {
-        //mInitCheckPoint = initCheckPoint;
+        this(initCheckPoint, 5);
+    }
+
+    public CheckPointMachine(int initCheckPoint, int maxFailCount) {
         mCheckPoints.push(initCheckPoint);
+        mMaxFailCount = maxFailCount;
     }
 
     public void setCheckPoint(int checkPoint) {
@@ -60,14 +64,29 @@ public abstract class CheckPointMachine {
         throw new FailException(reason);
     }
 
+    public void failImmediately(Throwable cause) {
+        mIsFinished = true;
+        mSuccess = false;
+
+        throw new FailException(cause);
+    }
+
     public boolean start() {
+        mIsFinished = false;
+        mSuccess = false;
+        int failCount = 0;
         while (!mIsFinished) {
+            if (failCount >= mMaxFailCount) {
+                mSuccess = false;
+                break;
+            }
             int chkpoint = mCheckPoints.peek();
             try {
                 run(chkpoint);
             } catch (Exception e) {
                 e.printStackTrace();
             }
+            failCount++;
         }
 
         return mSuccess;
@@ -79,6 +98,10 @@ public abstract class CheckPointMachine {
 
         public FailException(String message) {
             super(message);
+        }
+
+        public FailException(Throwable cause) {
+            super(cause);
         }
     }
 }

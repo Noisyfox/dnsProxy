@@ -45,24 +45,21 @@ public class ServerHandshakeMachine extends CheckPointMachine {
                 try {
                     waitClientHello();
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    failImmediately();
+                    failImmediately(e);
                 }
                 setCheckPoint(STAT_HELLO);
             case STAT_HELLO:
                 try {
                     sendHello();
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    failImmediately();
+                    failImmediately(e);
                 }
                 setCheckPoint(STAT_TEST);
             case STAT_TEST:
                 try {
                     test();
                 } catch (IOException e) {
-                    e.printStackTrace();
-                    failImmediately();
+                    failImmediately(e);
                 }
                 finish();
         }
@@ -81,7 +78,7 @@ public class ServerHandshakeMachine extends CheckPointMachine {
             int remain = DATA_SIZE_HELLO - byteRead;
             int thisRead = mInput.read(in, byteRead, remain);
             if (thisRead == -1) {
-                failImmediately();
+                throw new IOException("Unexpected end of stream");
             }
             byteRead += thisRead;
         }
@@ -89,7 +86,7 @@ public class ServerHandshakeMachine extends CheckPointMachine {
         // 验证前4个字节
         for (byte i = 0; i < 4; i++) {
             if (in[i] != i) {
-                failImmediately();
+                throw new IOException("Unknown hello package format");
             }
         }
 
