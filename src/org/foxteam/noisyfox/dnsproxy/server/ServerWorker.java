@@ -6,14 +6,10 @@ import org.foxteam.noisyfox.dnsproxy.dns.UDPDataFrame;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.UnknownHostException;
 import java.security.SecureRandom;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -21,10 +17,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * Created by Noisyfox on 2015/2/24.
  */
 public class ServerWorker implements Runnable {
-    private final static int MAX_CACHED_PACKET = 50;
 
-    private final ExecutorService mThreadPool = Executors.newCachedThreadPool();
-    private final HashMap<Integer, ProxyWorker> mThreadMap = new HashMap<Integer, ProxyWorker>();
+    //private final ExecutorService mThreadPool = Executors.newCachedThreadPool();
+    //private final HashMap<Integer, ProxyWorker> mThreadMap = new HashMap<Integer, ProxyWorker>();
     private final Socket mClientSocket;
     private final InetAddress mDNSAddress;
 
@@ -46,6 +41,9 @@ public class ServerWorker implements Runnable {
         }
         System.out.println("ServerWorker done!");
     }
+
+    private final ReentrantLock mTreadLock = new ReentrantLock();
+    private final Condition mThreadCondition = mTreadLock.newCondition();
 
     private void doJob() {
         OutputStream outputStream;
@@ -78,6 +76,41 @@ public class ServerWorker implements Runnable {
         outputStream = handshakeMachine.getEncryptedOutputStream();
         inputStream = handshakeMachine.getEncrpytedInputStream();
 
+        RespondFlinger flinger = new RespondFlinger(mDNSAddress);
+        flinger.start();
+
+        // 启动请求和响应线程，本线程成为监控线程，如果请求或响应线程出错，
+        // 则负责结束整个ServerWorker
+        Thread requestThread = new RequestThread(flinger, inputStream);
+        Thread respondThread = new RespondThread(flinger, outputStream);
+        mTreadLock.lock();
+        try {
+            requestThread.start();
+            respondThread.start();
+
+            try {
+                mThreadCondition.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } finally {
+            requestThread.interrupt();
+            respondThread.interrupt();
+            mTreadLock.unlock();
+            try {
+                requestThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            try {
+                respondThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        flinger.stop();
+        /*
         // 本线程负责接收从客户端发来的请求，并创建Worker进行处理
         while (!Thread.interrupted()) {
             UDPDataFrame dataFrame = obtainDataFrame();
@@ -117,8 +150,110 @@ public class ServerWorker implements Runnable {
         }
 
         mThreadPool.shutdownNow();
+        */
     }
 
+    /**
+     * 接收从客户端发来的请求并提交给flinger去处理
+     */
+    private class RequestThread extends Thread {
+        private final RespondFlinger mFlinger;
+        private final InputStream mIn;
+
+        public RequestThread(RespondFlinger respondFlinger, InputStream in) {
+            mFlinger = respondFlinger;
+            mIn = in;
+        }
+
+        @Override
+        public void run() {
+            try {
+                doJob();
+            } finally {
+                // 通知监控进程退出
+                mTreadLock.lock();
+                try {
+                    mThreadCondition.signalAll();
+                } finally {
+                    mTreadLock.unlock();
+                }
+            }
+        }
+
+        private void doJob() {
+            UDPDataFrame frame = new UDPDataFrame();
+            while (!interrupted()) {
+                try {
+                    int count = frame.readFromStream(mIn);
+                    if (count == -1) {
+                        return;
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return;
+                }
+
+                if (interrupted()) {
+                    return;
+                }
+
+                System.out.println("Client request! Port:" + frame.getPort());
+
+                mFlinger.queueRequestAndNotify(frame);
+            }
+        }
+    }
+
+    /**
+     * 接收flinger发来的请求结果并返回给客户端
+     */
+    private class RespondThread extends Thread {
+        private final RespondFlinger mFlinger;
+        private final OutputStream mOut;
+
+        public RespondThread(RespondFlinger respondFlinger, OutputStream out) {
+            mFlinger = respondFlinger;
+            mOut = out;
+        }
+
+        @Override
+        public void run() {
+            try {
+                doJob();
+            } finally {
+                // 通知监控进程退出
+                mTreadLock.lock();
+                try {
+                    mThreadCondition.signalAll();
+                } finally {
+                    mTreadLock.unlock();
+                }
+            }
+        }
+
+        private void doJob() {
+            UDPDataFrame frame = new UDPDataFrame();
+            while (!interrupted()) {
+                try {
+                    mFlinger.pollRespondOrWait(frame);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    return;
+                }
+
+                try {
+                    System.out.println("Respond send! Length:" + frame.getDataLength() + " port:" + frame.getPort());
+                    frame.writeToStream(mOut);
+                    mOut.flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return;
+                }
+            }
+        }
+    }
+
+    /*
     private final ReentrantLock mDataFrameCacheLock = new ReentrantLock();
     private final Queue<UDPDataFrame> mDataFrameCache = new LinkedList<UDPDataFrame>();
 
@@ -149,6 +284,7 @@ public class ServerWorker implements Runnable {
         }
     }
 
+    private final static int MAX_CACHED_PACKET = 50;
     private final static int MAX_PACKET_SIZE = 65507;
     private final Queue<DatagramPacket> mDatagramPackets = new LinkedList<DatagramPacket>();
     private final ReentrantLock mPacketCacheLock = new ReentrantLock();
@@ -208,7 +344,7 @@ public class ServerWorker implements Runnable {
 
         /**
          * 向本Worker提交任务，或者如果此时本Worker已经退出，则失败
-         */
+         *
         public boolean offerRequestOrFail(UDPDataFrame dataFrame) {
             mWorkerLock.lock();
             try {
@@ -332,4 +468,5 @@ public class ServerWorker implements Runnable {
             }
         }
     }
+        */
 }
