@@ -105,6 +105,7 @@ public class RequestFlinger {
             }
             DatagramPacket packet = mRespondQueue.poll();
             request.fillData(packet.getData(), packet.getOffset(), packet.getLength());
+            request.setPort(packet.getPort());
 
             releaseDatagramPacket(packet);
         } finally {
