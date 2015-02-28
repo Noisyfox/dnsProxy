@@ -189,9 +189,10 @@ public class AESFrame {
                 throw new IOException("Unexpected stream end!");
             }
 
-            int payloadSize = TMP_READ[0];
+            int payloadSize = 0;
+            payloadSize |= (TMP_READ[0] & 0xFF);
             payloadSize <<= 8;
-            payloadSize |= TMP_READ[1];
+            payloadSize |= (TMP_READ[1] & 0xFF);
             payloadSize &= 0xFFFF;
             if (payloadSize <= 0) {
                 throw new IOException("Unexpected payload size " + payloadSize);

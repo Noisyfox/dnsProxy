@@ -94,14 +94,16 @@ public class UDPDataFrame {
                 throw new IOException("Unexpected stream end!");
             }
 
-            mPort = TMP_BYTE4[0];
+            mPort = 0;
+            mPort |= (TMP_BYTE4[0] & 0xFF);
             mPort <<= 8;
-            mPort |= TMP_BYTE4[1];
+            mPort |= (TMP_BYTE4[1] & 0xFF);
             mPort &= 0xFFFF;
 
-            mDataLength = TMP_BYTE4[2];
+            mDataLength = 0;
+            mDataLength |= (TMP_BYTE4[2] & 0xFF);
             mDataLength <<= 8;
-            mDataLength |= TMP_BYTE4[3];
+            mDataLength |= (TMP_BYTE4[3] & 0xFF);
             mDataLength &= 0xFFFF;
 
             if (mData == null || mData.length < mDataLength) {
