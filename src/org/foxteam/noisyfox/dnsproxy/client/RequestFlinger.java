@@ -113,6 +113,20 @@ public class RequestFlinger {
         }
     }
 
+    /**
+     * 当本机没有请求的时候挂起
+     */
+    public void waitWhileRequestEmpty() throws InterruptedException {
+        mRequestLock.lock();
+        try {
+            if (mRequestQueue.isEmpty()) {
+                mRequestCondition.await();
+            }
+        } finally {
+            mRequestLock.unlock();
+        }
+    }
+
     private void checkThread() {
         mThreadLock.lock();
         try {
@@ -126,20 +140,6 @@ public class RequestFlinger {
             }
         } finally {
             mThreadLock.lock();
-        }
-    }
-
-    /**
-     * 当本机没有请求的时候挂起
-     */
-    public void waitWhileRequestEmpty() throws InterruptedException {
-        mRequestLock.lock();
-        try {
-            if (mRequestQueue.isEmpty()) {
-                mRequestCondition.await();
-            }
-        } finally {
-            mRequestLock.unlock();
         }
     }
 
@@ -192,7 +192,7 @@ public class RequestFlinger {
                         try {
                             mRespondCondition.await();
                         } catch (InterruptedException e) {
-                            e.printStackTrace();
+                            return;
                         }
                     } else {
                         packet = mRespondQueue.poll();
