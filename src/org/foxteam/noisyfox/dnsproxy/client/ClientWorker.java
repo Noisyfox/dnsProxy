@@ -139,6 +139,7 @@ public class ClientWorker extends Thread {
                 }
 
                 try {
+                    System.out.println("Request send! Port:" + frame.getPort());
                     frame.writeToStream(mOut);
                     mOut.flush();
                 } catch (IOException e) {
@@ -178,7 +179,10 @@ public class ClientWorker extends Thread {
             UDPDataFrame frame = new UDPDataFrame();
             while (!interrupted()) {
                 try {
-                    frame.readFromStream(mIn);
+                    int count = frame.readFromStream(mIn);
+                    if (count == -1) {
+                        return;
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                     return;
@@ -187,6 +191,8 @@ public class ClientWorker extends Thread {
                 if (interrupted()) {
                     return;
                 }
+
+                System.out.println("Server respond! Length:" + frame.getDataLength() + " port:" + frame.getPort());
 
                 mRequestFlinger.queueRespondAndNotify(frame);
             }
