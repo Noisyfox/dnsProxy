@@ -42,7 +42,7 @@ public class RequestFlinger {
 
     public RequestFlinger(DatagramSocket localSocket) throws UnknownHostException {
         mLocalSocket = localSocket;
-        mLocalHostAddress = InetAddress.getLocalHost();
+        mLocalHostAddress = InetAddress.getByName("127.0.0.1");
     }
 
     public void start() {
@@ -103,7 +103,7 @@ public class RequestFlinger {
             while (mRequestQueue.isEmpty()) {
                 mRequestCondition.await();
             }
-            DatagramPacket packet = mRespondQueue.poll();
+            DatagramPacket packet = mRequestQueue.poll();
             request.fillData(packet.getData(), packet.getOffset(), packet.getLength());
             request.setPort(packet.getPort());
 
@@ -163,6 +163,7 @@ public class RequestFlinger {
                 try {
                     // 接收一个请求
                     DatagramPacket packet = obtainDatagramPacket();
+                    packet.setData(packet.getData());
                     mLocalSocket.receive(packet);
 
                     queueRequestAndNotify(packet);
@@ -202,6 +203,7 @@ public class RequestFlinger {
                 if (packet != null) {
                     try {
                         mLocalSocket.send(packet);
+                        System.out.println("client respond!");
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -216,6 +218,11 @@ public class RequestFlinger {
     }
 
     private DatagramPacket obtainDatagramPacket() {
+        if (mDatagramPackets.isEmpty()) {
+            byte[] buffer = new byte[MAX_PACKET_SIZE];
+            return new DatagramPacket(buffer, buffer.length);
+        }
+
         mPacketCacheLock.lock();
         try {
             if (mDatagramPackets.isEmpty()) {
