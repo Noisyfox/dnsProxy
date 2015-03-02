@@ -1,5 +1,7 @@
 package org.foxteam.noisyfox.dnsproxy.server;
 
+import org.foxteam.noisyfox.dnsproxy.Application;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -11,10 +13,13 @@ import java.util.concurrent.Executors;
 /**
  * Created by Noisyfox on 2015/2/24.
  */
-public class Server {
+public class Server implements Application {
 
     private int mServerPort = 7373;
     private int mMaxThread = 50;
+
+    private ServerSocket mListener;
+    private ServerThread mThread;
 
     private ExecutorService mThreadPool = Executors.newFixedThreadPool(mMaxThread);
 
@@ -27,7 +32,7 @@ public class Server {
         }
     }
 
-    public boolean parseArgs(String args[]) {
+    private boolean parseArgs(String args[]) {
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
             if ("-p".equals(arg) || "--port".equals(arg)) {
@@ -66,24 +71,104 @@ public class Server {
         return true;
     }
 
-    public void loop() {
-        System.out.println(String.format("Server listen on %d, using dns %s", mServerPort, mDnsProvider.getHostAddress()));
-        ServerSocket listener;
-        try {
-            listener = new ServerSocket(mServerPort);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return;
-        }
-
-        while (true) {
+    private void loop() {
+        while (!Thread.interrupted()) {
             try {
-                Socket socket = listener.accept();
+                Socket socket = mListener.accept();
                 // TODO:检查该socket对应的地址是不是对应了太多连接
                 mThreadPool.execute(new ServerWorker(socket, mDnsProvider));
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+        mThreadPool.shutdownNow();
+    }
+
+    private boolean listenClient() {
+        ServerSocket listener;
+        try {
+            listener = new ServerSocket(mServerPort);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        mListener = listener;
+        return true;
+    }
+
+    private void closeListen() {
+        if (mListener == null) {
+            return;
+        }
+
+        try {
+            mListener.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        mListener = null;
+    }
+
+    @Override
+    public boolean init(String[] args) {
+        if (!parseArgs(args)) {
+            return false;
+        }
+
+        System.out.println(String.format("Server listen on %d, using dns %s", mServerPort, mDnsProvider.getHostAddress()));
+
+        if (!listenClient()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public boolean start() {
+        mThread = new ServerThread();
+        mThread.start();
+
+        return true;
+    }
+
+    @Override
+    public boolean stop() {
+        if (mThread == null) {
+            return false;
+        }
+        mThread.interrupt();
+        try {
+            mThread.join();
+        } catch (InterruptedException ignored) {
+        }
+        return true;
+    }
+
+    @Override
+    public void waitToStop() {
+        if (mThread == null) {
+            return;
+        }
+        try {
+            mThread.join();
+        } catch (InterruptedException ignored) {
+        }
+    }
+
+    @Override
+    public boolean destroy() {
+        closeListen();
+
+        return true;
+    }
+
+    private class ServerThread extends Thread {
+        @Override
+        public void run() {
+            loop();
         }
     }
 }

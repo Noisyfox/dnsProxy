@@ -82,11 +82,6 @@ public class RequestFlinger {
         } finally {
             mThreadLock.lock();
         }
-        try {
-            mLocalChannel.disconnect();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 
     public void queueRespondAndNotify(UDPDataFrame respond) {

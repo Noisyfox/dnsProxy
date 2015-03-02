@@ -5,6 +5,9 @@ import org.foxteam.noisyfox.dnsproxy.server.Server;
 
 /**
  * Created by Noisyfox on 2015/3/2.
+ * <p/>
+ * interface implements apache jsvc methods
+ * see http://commons.apache.org/proper/commons-daemon/jsvc.html
  */
 public class Bootstrap {
 
@@ -33,7 +36,17 @@ public class Bootstrap {
             return;
         }
 
+        Bootstrap bootstrap = new Bootstrap();
+        bootstrap.init(args);
 
+        bootstrap.start();
+        bootstrap.waitToStop();
+        bootstrap.destroy();
+    }
+
+    private Application mApplication;
+
+    public void init(String[] args) {
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
             if ("-v".equals(arg) || "--vv".equals(arg)) {
@@ -41,23 +54,46 @@ public class Bootstrap {
             }
         }
 
+        Application application;
         String mode = args[0];
         if ("client".equals(mode)) {
-            Client client = new Client();
-            if (!client.parseArgs(args)) {
-                printUsage();
-                System.exit(-1);
-            }
-            client.startProxy();
+            application = new Client();
         } else if ("server".equals(mode)) {
-            Server server = new Server();
-            if (!server.parseArgs(args)) {
-                printUsage();
-                System.exit(-2);
-            }
-            server.loop();
+            application = new Server();
         } else {
             printUsage();
+            return;
+        }
+
+        if (!application.init(args)) {
+            printUsage();
+            System.exit(-1);
+        }
+
+        mApplication = application;
+    }
+
+    public void start() {
+        if (mApplication != null) {
+            mApplication.start();
+        }
+    }
+
+    public void stop() {
+        if (mApplication != null) {
+            mApplication.stop();
+        }
+    }
+
+    public void destroy() {
+        if (mApplication != null) {
+            mApplication.destroy();
+        }
+    }
+
+    private void waitToStop() {
+        if (mApplication != null) {
+            mApplication.waitToStop();
         }
     }
 }

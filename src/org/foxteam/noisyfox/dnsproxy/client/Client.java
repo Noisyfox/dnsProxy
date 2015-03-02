@@ -1,5 +1,7 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
+import org.foxteam.noisyfox.dnsproxy.Application;
+
 import java.io.IOException;
 import java.net.*;
 import java.nio.channels.DatagramChannel;
@@ -7,12 +9,14 @@ import java.nio.channels.DatagramChannel;
 /**
  * Created by Noisyfox on 2015/2/24.
  */
-public class Client {
+public class Client implements Application {
 
+    private DatagramChannel mLocalChannel;
     private InetAddress mServerAddress;
     private int mServerPort = 7373;
+    private ClientThread mThread = null;
 
-    public boolean parseArgs(String args[]) {
+    private boolean parseArgs(String args[]) {
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
             if ("-p".equals(arg) || "--port".equals(arg)) {
@@ -54,8 +58,7 @@ public class Client {
         return true;
     }
 
-    public void startProxy() {
-        System.out.println(String.format("Client connect to %s:%d", mServerAddress.getHostAddress(), mServerPort));
+    private boolean listenDNSPort() {
         // 开始监听本地端口
         DatagramChannel localChannel = null;
         try {
@@ -70,16 +73,35 @@ public class Client {
                     e1.printStackTrace();
                 }
             }
+            return false;
+        }
+        mLocalChannel = localChannel;
+
+        return true;
+    }
+
+    private void closeDNSPort() {
+        if (mLocalChannel == null) {
             return;
         }
 
+        try {
+            mLocalChannel.disconnect();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        mLocalChannel = null;
+    }
+
+    private void startProxy() {
         RequestFlinger requestFlinger;
         try {
-            requestFlinger = new RequestFlinger(localChannel);
+            requestFlinger = new RequestFlinger(mLocalChannel);
         } catch (UnknownHostException e) {
             e.printStackTrace();
             try {
-                localChannel.disconnect();
+                mLocalChannel.disconnect();
             } catch (IOException e1) {
                 e1.printStackTrace();
             }
@@ -112,12 +134,65 @@ public class Client {
                 break;
             }
         }
-
         requestFlinger.stop();
+    }
+
+    @Override
+    public boolean init(String[] args) {
+        if (!parseArgs(args)) {
+            return false;
+        }
+
+        System.out.println(String.format("Client connect to %s:%d", mServerAddress.getHostAddress(), mServerPort));
+
+        if (!listenDNSPort()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public boolean start() {
+        mThread = new ClientThread();
+        mThread.start();
+        return true;
+    }
+
+    @Override
+    public boolean stop() {
+        if (mThread == null) {
+            return false;
+        }
+        mThread.interrupt();
         try {
-            localChannel.disconnect();
-        } catch (IOException e) {
-            e.printStackTrace();
+            mThread.join();
+        } catch (InterruptedException ignored) {
+        }
+        return true;
+    }
+
+    @Override
+    public void waitToStop() {
+        if (mThread == null) {
+            return;
+        }
+        try {
+            mThread.join();
+        } catch (InterruptedException ignored) {
+        }
+    }
+
+    @Override
+    public boolean destroy() {
+        closeDNSPort();
+        return true;
+    }
+
+    private class ClientThread extends Thread {
+        @Override
+        public void run() {
+            startProxy();
         }
     }
 }
