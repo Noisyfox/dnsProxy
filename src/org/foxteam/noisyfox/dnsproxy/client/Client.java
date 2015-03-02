@@ -113,7 +113,6 @@ public class Client implements Application {
             try {
                 requestFlinger.waitWhileRequestEmpty();// 等待本机发出请求
             } catch (InterruptedException e) {
-                e.printStackTrace();
                 break;
             }
 
@@ -125,7 +124,7 @@ public class Client implements Application {
                 try {
                     clientWorker.join();
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    break;
                 }
             } catch (IOException e) {
                 e.printStackTrace();

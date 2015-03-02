@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.channels.SocketChannel;
 import java.security.SecureRandom;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -17,12 +18,14 @@ import java.util.concurrent.locks.ReentrantLock;
  * Created by Noisyfox on 2015/2/24.
  */
 public class ServerWorker implements Runnable {
+    private final SocketChannel mClientChannel;
     private final Socket mClientSocket;
     private final InetAddress mDNSAddress;
 
-    public ServerWorker(Socket clientSocket, InetAddress dnsAddress) {
+    public ServerWorker(SocketChannel clientChannel, InetAddress dnsAddress) {
         mDNSAddress = dnsAddress;
-        mClientSocket = clientSocket;
+        mClientChannel = clientChannel;
+        mClientSocket = clientChannel.socket();
     }
 
     @Override
@@ -31,7 +34,7 @@ public class ServerWorker implements Runnable {
             doJob();
         } finally {
             try {
-                mClientSocket.close(); // 确保连接关闭
+                mClientChannel.close(); // 确保连接关闭
             } catch (IOException e) {
                 e.printStackTrace();
             }

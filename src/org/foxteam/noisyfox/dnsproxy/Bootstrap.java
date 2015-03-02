@@ -36,7 +36,7 @@ public class Bootstrap {
             return;
         }
 
-        Bootstrap bootstrap = new Bootstrap();
+        final Bootstrap bootstrap = new Bootstrap();
         bootstrap.init(args);
 
         bootstrap.start();

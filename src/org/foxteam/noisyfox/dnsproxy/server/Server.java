@@ -3,10 +3,13 @@ package org.foxteam.noisyfox.dnsproxy.server;
 import org.foxteam.noisyfox.dnsproxy.Application;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.UnknownHostException;
+import java.net.*;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -18,7 +21,10 @@ public class Server implements Application {
     private int mServerPort = 7373;
     private int mMaxThread = 50;
 
-    private ServerSocket mListener;
+    private ServerSocketChannel mServerChannel;
+    private Selector mServerSelector;
+    //private ServerSocket mListener;
+
     private ServerThread mThread;
 
     private ExecutorService mThreadPool = Executors.newFixedThreadPool(mMaxThread);
@@ -74,9 +80,19 @@ public class Server implements Application {
     private void loop() {
         while (!Thread.interrupted()) {
             try {
-                Socket socket = mListener.accept();
-                // TODO:检查该socket对应的地址是不是对应了太多连接
-                mThreadPool.execute(new ServerWorker(socket, mDnsProvider));
+                mServerSelector.select();
+                Set<SelectionKey> keys = mServerSelector.selectedKeys();
+                Iterator<SelectionKey> iter = keys.iterator();
+                while (iter.hasNext()) {
+                    SelectionKey key = iter.next();
+                    if (key.isAcceptable()) {  // 新的连接
+                        ServerSocketChannel ssc = (ServerSocketChannel) key.channel();
+                        SocketChannel sc = ssc.accept();
+                        // TODO:检查该socket对应的地址是不是对应了太多连接
+                        mThreadPool.execute(new ServerWorker(sc, mDnsProvider));
+                    }
+                    iter.remove(); //处理完事件的要从keys中删去
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -85,30 +101,37 @@ public class Server implements Application {
     }
 
     private boolean listenClient() {
-        ServerSocket listener;
         try {
-            listener = new ServerSocket(mServerPort);
+            mServerChannel = ServerSocketChannel.open();
+            mServerSelector = Selector.open();
+            mServerChannel.socket().bind(new InetSocketAddress(mServerPort));
+            mServerChannel.configureBlocking(false);
+            mServerChannel.register(mServerSelector, SelectionKey.OP_ACCEPT);
         } catch (IOException e) {
             e.printStackTrace();
             return false;
         }
 
-        mListener = listener;
         return true;
     }
 
     private void closeListen() {
-        if (mListener == null) {
-            return;
+        if (mServerSelector != null) {
+            try {
+                mServerSelector.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-
-        try {
-            mListener.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (mServerChannel != null) {
+            try {
+                mServerChannel.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-
-        mListener = null;
+        mServerSelector = null;
+        mServerChannel = null;
     }
 
     @Override
