@@ -172,7 +172,7 @@ public class ServerHandshakeMachine extends CheckPointMachine {
         // 从这里开始，连接正式建立
     }
 
-    public AESInputStream getEncrpytedInputStream() {
+    public AESInputStream getEncryptedInputStream() {
         return mAESIn;
     }
 

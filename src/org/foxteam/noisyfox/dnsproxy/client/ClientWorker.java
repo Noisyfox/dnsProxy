@@ -1,5 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
+import org.foxteam.noisyfox.dnsproxy.Utils;
 import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.dns.UDPDataFrame;
 
@@ -35,7 +36,7 @@ public class ClientWorker extends Thread {
                 e.printStackTrace();
             }
         }
-        System.out.println("ClientWorker done!");
+        Utils.showVerbose("ClientWorker done!");
     }
 
     private void doJob() {
@@ -63,7 +64,7 @@ public class ClientWorker extends Thread {
             return;
         }
 
-        System.out.println("ClientWorker handshake success!");
+        Utils.showVerbose("ClientWorker handshake success!");
         // 握手完成，开始加密传输
 
         outputStream = handshakeMachine.getEncryptedOutputStream();
@@ -139,7 +140,7 @@ public class ClientWorker extends Thread {
                 }
 
                 try {
-                    System.out.println("Request send! Port:" + frame.getPort());
+                    Utils.showVerbose("Request send! Port:" + frame.getPort());
                     frame.writeToStream(mOut);
                     mOut.flush();
                 } catch (IOException e) {
@@ -192,7 +193,7 @@ public class ClientWorker extends Thread {
                     return;
                 }
 
-                System.out.println("Server respond! Length:" + frame.getDataLength() + " port:" + frame.getPort());
+                Utils.showVerbose("Server respond! Length:" + frame.getDataLength() + " port:" + frame.getPort());
 
                 mRequestFlinger.queueRespondAndNotify(frame);
             }

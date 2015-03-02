@@ -1,5 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
+import org.foxteam.noisyfox.dnsproxy.Utils;
 import org.foxteam.noisyfox.dnsproxy.dns.UDPDataFrame;
 
 import java.io.IOException;
@@ -50,6 +51,7 @@ public class RequestFlinger {
     }
 
     public void stop() {
+        mLocalSocket.close();
         mThreadLock.lock();
         try {
             if (mListenerThread != null) {
@@ -203,7 +205,7 @@ public class RequestFlinger {
                 if (packet != null) {
                     try {
                         mLocalSocket.send(packet);
-                        System.out.println("client respond!");
+                        Utils.showVerbose("client respond!");
                     } catch (IOException e) {
                         e.printStackTrace();
                     }

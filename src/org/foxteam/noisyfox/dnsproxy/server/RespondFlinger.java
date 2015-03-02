@@ -185,9 +185,9 @@ public class RespondFlinger {
         public void run() {
             mCurrentThread = Thread.currentThread();
             mThreadLock.lock();
+            RequestThread requestThread = null;
+            RespondThread respondThread = null;
             try {
-                RequestThread requestThread = null;
-                RespondThread respondThread = null;
                 while (!Thread.currentThread().isInterrupted()) {
                     if (requestThread == null || !requestThread.mRunning) {
                         requestThread = new RequestThread();
@@ -203,8 +203,12 @@ public class RespondFlinger {
                         Thread.currentThread().interrupt();
                     }
                 }
+            } finally {
+                mThreadLock.unlock();
+                mSocket.close();
 
                 // shutdown
+                System.out.println("RespondFlinger Worker interrupted!");
                 if (requestThread != null) {
                     requestThread.interrupt();
                 }
@@ -217,15 +221,16 @@ public class RespondFlinger {
                     } catch (InterruptedException ignored) {
                     }
                 }
+                System.out.println("RespondFlinger requestThread stopped!");
                 if (respondThread != null) {
                     try {
                         respondThread.join();
                     } catch (InterruptedException ignored) {
                     }
                 }
-            } finally {
-                mSocket.close();
-                mThreadLock.unlock();
+                System.out.println("RespondFlinger respondThread stopped!");
+
+                System.out.println("RespondFlinger Worker finished!");
             }
         }
 

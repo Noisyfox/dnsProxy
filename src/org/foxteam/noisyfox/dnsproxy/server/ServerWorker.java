@@ -1,5 +1,6 @@
 package org.foxteam.noisyfox.dnsproxy.server;
 
+import org.foxteam.noisyfox.dnsproxy.Utils;
 import org.foxteam.noisyfox.dnsproxy.crypto.DH;
 import org.foxteam.noisyfox.dnsproxy.dns.UDPDataFrame;
 
@@ -8,7 +9,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.security.SecureRandom;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -20,8 +20,8 @@ public class ServerWorker implements Runnable {
     private final Socket mClientSocket;
     private final InetAddress mDNSAddress;
 
-    public ServerWorker(Socket clientSocket) throws UnknownHostException {
-        mDNSAddress = InetAddress.getByName("114.114.114.114");
+    public ServerWorker(Socket clientSocket, InetAddress dnsAddress) {
+        mDNSAddress = dnsAddress;
         mClientSocket = clientSocket;
     }
 
@@ -36,7 +36,7 @@ public class ServerWorker implements Runnable {
                 e.printStackTrace();
             }
         }
-        System.out.println("ServerWorker done!");
+        Utils.showVerbose("ServerWorker done!");
     }
 
     private final ReentrantLock mTreadLock = new ReentrantLock();
@@ -67,46 +67,59 @@ public class ServerWorker implements Runnable {
             return;
         }
 
-        System.out.println("ServerWorker handshake success!");
+        Utils.showVerbose("ServerWorker handshake success!");
         // 握手完成，开始加密传输
 
         outputStream = handshakeMachine.getEncryptedOutputStream();
-        inputStream = handshakeMachine.getEncrpytedInputStream();
+        inputStream = handshakeMachine.getEncryptedInputStream();
 
-        RespondFlinger flinger = new RespondFlinger(mDNSAddress);
-        flinger.start();
+        RespondFlinger flinger = null;
+        Thread requestThread = null;
+        Thread respondThread = null;
 
-        // 启动请求和响应线程，本线程成为监控线程，如果请求或响应线程出错，
-        // 则负责结束整个ServerWorker
-        Thread requestThread = new RequestThread(flinger, inputStream);
-        Thread respondThread = new RespondThread(flinger, outputStream);
         mTreadLock.lock();
         try {
+            flinger = new RespondFlinger(mDNSAddress);
+            flinger.start();
+
+            // 启动请求和响应线程，本线程成为监控线程，如果请求或响应线程出错，
+            // 则负责结束整个ServerWorker
+            requestThread = new RequestThread(flinger, inputStream);
+            respondThread = new RespondThread(flinger, outputStream);
+
             requestThread.start();
             respondThread.start();
 
             try {
                 mThreadCondition.await();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+            } catch (InterruptedException ignored) {
             }
         } finally {
-            requestThread.interrupt();
-            respondThread.interrupt();
             mTreadLock.unlock();
-            try {
-                requestThread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+
+            if (flinger != null) {
+                flinger.stop();
+            }
+
+            if (requestThread != null) {
+                requestThread.interrupt();
+            }
+            if (respondThread != null) {
+                respondThread.interrupt();
             }
             try {
-                respondThread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+                if (requestThread != null) {
+                    requestThread.join();
+                }
+            } catch (InterruptedException ignored) {
+            }
+            try {
+                if (respondThread != null) {
+                    respondThread.join();
+                }
+            } catch (InterruptedException ignored) {
             }
         }
-
-        flinger.stop();
     }
 
     /**
@@ -153,7 +166,7 @@ public class ServerWorker implements Runnable {
                     return;
                 }
 
-                System.out.println("Client request! Port:" + frame.getPort());
+                Utils.showVerbose("Client request! Port:" + frame.getPort());
 
                 mFlinger.queueRequestAndNotify(frame);
             }
@@ -197,7 +210,7 @@ public class ServerWorker implements Runnable {
                 }
 
                 try {
-                    System.out.println("Respond send! Length:" + frame.getDataLength() + " port:" + frame.getPort());
+                    Utils.showVerbose("Respond send! Length:" + frame.getDataLength() + " port:" + frame.getPort());
                     frame.writeToStream(mOut);
                     mOut.flush();
                 } catch (IOException e) {

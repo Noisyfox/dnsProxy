@@ -9,16 +9,52 @@ import java.net.*;
 public class Client {
 
     private InetAddress mServerAddress;
-    private int mServerPort = 9473;
+    private int mServerPort = 7373;
+
+    public boolean parseArgs(String args[]) {
+        for (int i = 1; i < args.length; i++) {
+            String arg = args[i];
+            if ("-p".equals(arg) || "--port".equals(arg)) {
+                if (i == args.length - 1) {
+                    System.out.println("option " + arg + " requires argument");
+                    return false;
+                }
+                String p = args[++i];
+                try {
+                    int port = Integer.parseInt(p);
+                    if (port > 0 && port < 65536) {
+                        mServerPort = port;
+                        continue;
+                    }
+                } catch (NumberFormatException ignored) {
+                }
+                System.out.println("Illegal port number " + p);
+                return false;
+            } else if ("-s".equals(arg) || "--server".equals(arg)) {
+                if (i == args.length - 1) {
+                    System.out.println("option " + arg + " requires argument");
+                    return false;
+                }
+                String s = args[++i];
+                try {
+                    mServerAddress = InetAddress.getByName(s);
+                    continue;
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                }
+                System.out.println("Illegal server address " + s);
+                return false;
+            }
+        }
+        if (mServerAddress == null) {
+            System.out.println("Must specifies the server address!");
+            return false;
+        }
+        return true;
+    }
 
     public void startProxy() {
-        try {
-            mServerAddress = InetAddress.getLocalHost();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-            return;
-        }
-
+        System.out.println(String.format("Client connect to %s:%d", mServerAddress.getHostAddress(), mServerPort));
         // 开始监听本地端口
         final DatagramSocket localSocket;
         try {

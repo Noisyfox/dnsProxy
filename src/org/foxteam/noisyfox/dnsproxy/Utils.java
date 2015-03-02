@@ -24,4 +24,12 @@ public class Utils {
 
         return totalLength;
     }
+
+    public static boolean SHOW_VERBOSE = false;
+
+    public static void showVerbose(String verbose) {
+        if (SHOW_VERBOSE) {
+            System.out.println(verbose);
+        }
+    }
 }
