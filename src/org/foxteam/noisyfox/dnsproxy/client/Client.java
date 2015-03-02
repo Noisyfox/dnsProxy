@@ -2,6 +2,7 @@ package org.foxteam.noisyfox.dnsproxy.client;
 
 import java.io.IOException;
 import java.net.*;
+import java.nio.channels.DatagramChannel;
 
 /**
  * Created by Noisyfox on 2015/2/24.
@@ -56,20 +57,32 @@ public class Client {
     public void startProxy() {
         System.out.println(String.format("Client connect to %s:%d", mServerAddress.getHostAddress(), mServerPort));
         // 开始监听本地端口
-        final DatagramSocket localSocket;
+        DatagramChannel localChannel = null;
         try {
-            localSocket = new DatagramSocket(53);
-        } catch (SocketException e) {
+            localChannel = DatagramChannel.open();
+            localChannel.socket().bind(new InetSocketAddress(53));
+        } catch (IOException e) {
             e.printStackTrace();
+            if (localChannel != null) {
+                try {
+                    localChannel.disconnect();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
             return;
         }
 
         RequestFlinger requestFlinger;
         try {
-            requestFlinger = new RequestFlinger(localSocket);
+            requestFlinger = new RequestFlinger(localChannel);
         } catch (UnknownHostException e) {
             e.printStackTrace();
-            localSocket.close();
+            try {
+                localChannel.disconnect();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
             return;
         }
         requestFlinger.start();
@@ -101,6 +114,10 @@ public class Client {
         }
 
         requestFlinger.stop();
-        localSocket.close();
+        try {
+            localChannel.disconnect();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

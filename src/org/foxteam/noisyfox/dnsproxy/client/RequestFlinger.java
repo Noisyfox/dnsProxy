@@ -8,6 +8,8 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.DatagramChannel;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.locks.Condition;
@@ -36,13 +38,15 @@ public class RequestFlinger {
     private final Queue<DatagramPacket> mRespondQueue = new LinkedList<DatagramPacket>();
 
     private final InetAddress mLocalHostAddress;
+    private final DatagramChannel mLocalChannel;
     private final DatagramSocket mLocalSocket;
 
     private LocalListener mListenerThread;
     private LocalResponder mResponderThread;
 
-    public RequestFlinger(DatagramSocket localSocket) throws UnknownHostException {
-        mLocalSocket = localSocket;
+    public RequestFlinger(DatagramChannel localChannel) throws UnknownHostException {
+        mLocalChannel = localChannel;
+        mLocalSocket = localChannel.socket();
         mLocalHostAddress = InetAddress.getByName("127.0.0.1");
     }
 
@@ -51,7 +55,6 @@ public class RequestFlinger {
     }
 
     public void stop() {
-        mLocalSocket.close();
         mThreadLock.lock();
         try {
             if (mListenerThread != null) {
@@ -78,6 +81,11 @@ public class RequestFlinger {
             mResponderThread = null;
         } finally {
             mThreadLock.lock();
+        }
+        try {
+            mLocalChannel.disconnect();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -169,6 +177,8 @@ public class RequestFlinger {
                     mLocalSocket.receive(packet);
 
                     queueRequestAndNotify(packet);
+                } catch (ClosedByInterruptException e) {
+                    return;
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

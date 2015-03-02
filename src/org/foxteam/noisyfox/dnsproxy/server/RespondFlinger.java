@@ -1,12 +1,12 @@
 package org.foxteam.noisyfox.dnsproxy.server;
 
+import org.foxteam.noisyfox.dnsproxy.Utils;
 import org.foxteam.noisyfox.dnsproxy.dns.UDPDataFrame;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
+import java.net.*;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.DatagramChannel;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -65,21 +65,29 @@ public class RespondFlinger {
             if (worker == null || !worker.queueRequestOrFail(packet)) {
                 // 随机分配UDP
                 Random random = new Random();
-                int failCount = 0;
-                DatagramSocket proxySocket = null;
-                while (failCount < 5) {
-                    int randomPort = 3000 + random.nextInt(2000);
-                    try {
-                        proxySocket = new DatagramSocket(randomPort);
-                        break;
-                    } catch (SocketException ignored) {
+                int failCount;
+                DatagramChannel proxyChannel;
+
+                try {
+                    proxyChannel = DatagramChannel.open();
+                    for (failCount = 0; failCount < 5; failCount++) {
+                        int randomPort = 3000 + random.nextInt(2000);
+                        try {
+                            proxyChannel.socket().bind(new InetSocketAddress(randomPort));
+                            break;
+                        } catch (IOException ignored) {
+                        }
                     }
-                    failCount++;
-                }
-                if (proxySocket == null) {
+                    if (failCount >= 5) {
+                        proxyChannel.close();
+                        return;
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
                     return;
                 }
-                worker = new FlingerWorker(proxySocket, request.getPort());
+
+                worker = new FlingerWorker(proxyChannel, request.getPort());
                 worker.queueRequestOrFail(packet);
                 mPortMapper.put(request.getPort(), worker);
                 mWorkerPool.execute(worker);
@@ -154,14 +162,16 @@ public class RespondFlinger {
         private final Condition mRequestCondition = mRequestLock.newCondition();
 
         private final Queue<DatagramPacket> mRequestQueue = new LinkedList<DatagramPacket>();
+        private final DatagramChannel mChannel;
         private final DatagramSocket mSocket;
         private final int mPort;
 
         private volatile boolean mStopped = false;
         private Thread mCurrentThread;
 
-        public FlingerWorker(DatagramSocket remoteSocket, int port) {
-            mSocket = remoteSocket;
+        public FlingerWorker(DatagramChannel remoteChannel, int port) {
+            mChannel = remoteChannel;
+            mSocket = mChannel.socket();
             mPort = port;
         }
 
@@ -205,10 +215,9 @@ public class RespondFlinger {
                 }
             } finally {
                 mThreadLock.unlock();
-                mSocket.close();
 
                 // shutdown
-                System.out.println("RespondFlinger Worker interrupted!");
+                Utils.showVerbose("RespondFlinger Worker interrupted!");
                 if (requestThread != null) {
                     requestThread.interrupt();
                 }
@@ -221,16 +230,22 @@ public class RespondFlinger {
                     } catch (InterruptedException ignored) {
                     }
                 }
-                System.out.println("RespondFlinger requestThread stopped!");
+                Utils.showVerbose("RespondFlinger requestThread stopped!");
                 if (respondThread != null) {
                     try {
                         respondThread.join();
                     } catch (InterruptedException ignored) {
                     }
                 }
-                System.out.println("RespondFlinger respondThread stopped!");
+                Utils.showVerbose("RespondFlinger respondThread stopped!");
 
-                System.out.println("RespondFlinger Worker finished!");
+                try {
+                    mChannel.disconnect();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                Utils.showVerbose("RespondFlinger Worker finished!");
             }
         }
 
@@ -314,6 +329,8 @@ public class RespondFlinger {
                         packet.setPort(mPort); // 映射端口
 
                         queueRespondAndNotify(packet);
+                    } catch (ClosedByInterruptException e) {
+                        return;
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
