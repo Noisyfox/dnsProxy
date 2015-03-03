@@ -10,6 +10,8 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 /**
  * Created by Noisyfox on 2015/3/2.
@@ -57,7 +59,13 @@ public class Bootstrap {
     private JSONObject mConfig = null;
 
     public void init(String[] args) {
+        Utils.SHOW_VERBOSE = false;
+
         if (!preInit(args)) {
+            printUsage();
+            return;
+        }
+        if (!readConfig(mConfig)) {
             printUsage();
             return;
         }
@@ -79,6 +87,19 @@ public class Bootstrap {
         }
 
         mApplication = application;
+    }
+
+    private boolean readConfig(JSONObject cfg) {
+        if (cfg == null) {
+            return true;
+        }
+
+        String v = (String) cfg.get("verbose");
+        if (v != null) {
+            Utils.SHOW_VERBOSE = "true".equals(v);
+        }
+
+        return true;
     }
 
     private boolean preInit(String[] args) {

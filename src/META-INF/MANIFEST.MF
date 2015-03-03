@@ -1,5 +1,4 @@
 Manifest-Version: 1.0
-Class-Path: bcprov-jdk15on-151.jar
-Class-Path: json-simple-1.1.1.jar
+Class-Path: bcprov-jdk15on-151.jar json-simple-1.1.1.jar
 Main-Class: org.foxteam.noisyfox.dnsproxy.Bootstrap
 
