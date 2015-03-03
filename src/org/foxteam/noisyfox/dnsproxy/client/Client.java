@@ -1,8 +1,9 @@
 package org.foxteam.noisyfox.dnsproxy.client;
 
 import org.foxteam.noisyfox.dnsproxy.Application;
+import org.json.simple.JSONObject;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.*;
 import java.nio.channels.DatagramChannel;
 
@@ -51,10 +52,43 @@ public class Client implements Application {
                 return false;
             }
         }
-        if (mServerAddress == null) {
-            System.out.println("Must specifies the server address!");
-            return false;
+        return true;
+    }
+
+    private boolean readConfig(JSONObject cfg) {
+        if (cfg == null) {
+            return true;
         }
+
+        String p = (String) cfg.get("port");
+        if (p != null) {
+            int port = -1;
+            try {
+                port = Integer.parseInt(p);
+                if (port <= 0 || port >= 65536) {
+                    port = -1;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+            if (port == -1) {
+                System.out.println("Illegal port number " + p);
+                return false;
+            } else {
+                mServerPort = port;
+            }
+        }
+
+        String s = (String) cfg.get("server");
+        if (s != null) {
+            try {
+                mServerAddress = InetAddress.getByName(s);
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+                System.out.println("Illegal server address " + s);
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -137,8 +171,16 @@ public class Client implements Application {
     }
 
     @Override
-    public boolean init(String[] args) {
+    public boolean init(String[] args, JSONObject config) {
         if (!parseArgs(args)) {
+            return false;
+        }
+        if (!readConfig(config)) {
+            return false;
+        }
+
+        if (mServerAddress == null) {
+            System.out.println("Must specifies the server address!");
             return false;
         }
 

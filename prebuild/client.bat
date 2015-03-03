@@ -3,7 +3,7 @@ rem ---------------------------------------------------------------------------
 rem Start Script for the DNS Proxy client
 rem ---------------------------------------------------------------------------
 
-set "CLIENT_CONFIG=-s 127.0.0.1"
+set "CLIENT_CONFIG=-c proxy.json
 
 if not "%DNSPROXY_HOME%" == "" goto gotHome
 set "DNSPROXY_HOME=%cd%"

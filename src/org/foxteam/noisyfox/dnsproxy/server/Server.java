@@ -1,6 +1,7 @@
 package org.foxteam.noisyfox.dnsproxy.server;
 
 import org.foxteam.noisyfox.dnsproxy.Application;
+import org.json.simple.JSONObject;
 
 import java.io.IOException;
 import java.net.*;
@@ -135,7 +136,7 @@ public class Server implements Application {
     }
 
     @Override
-    public boolean init(String[] args) {
+    public boolean init(String[] args, JSONObject config) {
         if (!parseArgs(args)) {
             return false;
         }
