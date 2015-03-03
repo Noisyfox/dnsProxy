@@ -13,6 +13,8 @@ import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -169,6 +171,10 @@ public class RespondFlinger {
         private volatile boolean mStopped = false;
         private Thread mCurrentThread;
 
+        private static final long IDLE_TIMEOUT = 5000L;
+        private static final long BLOCK_TIMEOUT = 2000L;
+        private volatile AtomicLong mLastActiveTime = new AtomicLong(0L);
+
         public FlingerWorker(DatagramChannel remoteChannel, int port) {
             mChannel = remoteChannel;
             mSocket = mChannel.socket();
@@ -186,13 +192,38 @@ public class RespondFlinger {
             }
         }
 
-        public void stop() {
+        private void stop() {
+            mWorkerLock.lock();
+            try {
+                if (mPortMapper.get(mPort) == this) {
+                    mPortMapper.remove(mPort);
+                }
+            } finally {
+                mWorkerLock.unlock();
+            }
             mStopped = true;
-            mCurrentThread.interrupt();
+            if (mCurrentThread != null) {
+                mCurrentThread.interrupt();
+            }
+        }
+
+        private void testTimeout(boolean work) {
+            long currentTime = System.currentTimeMillis();
+            if (work) {
+                mLastActiveTime.set(currentTime);
+            } else {
+                long lastTime = mLastActiveTime.get();
+                if (currentTime > lastTime + IDLE_TIMEOUT) {
+                    stop();
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
 
         @Override
         public void run() {
+            mLastActiveTime.set(System.currentTimeMillis()); //记录时间
+
             mCurrentThread = Thread.currentThread();
             mThreadLock.lock();
             RequestThread requestThread = null;
@@ -214,7 +245,18 @@ public class RespondFlinger {
                     }
                 }
             } finally {
+                mCurrentThread = null;
+                mStopped = true;
                 mThreadLock.unlock();
+
+                mWorkerLock.lock();
+                try {
+                    if (mPortMapper.get(mPort) == this) {
+                        mPortMapper.remove(mPort);
+                    }
+                } finally {
+                    mWorkerLock.unlock();
+                }
 
                 // shutdown
                 Utils.showVerbose("RespondFlinger Worker interrupted!");
@@ -274,7 +316,7 @@ public class RespondFlinger {
                     try {
                         if (mRequestQueue.isEmpty()) {
                             try {
-                                mRequestCondition.await();
+                                mRequestCondition.await(BLOCK_TIMEOUT, TimeUnit.MILLISECONDS);
                             } catch (InterruptedException e) {
                                 return;
                             }
@@ -287,10 +329,15 @@ public class RespondFlinger {
                     if (packet != null) {
                         try {
                             mSocket.send(packet);
+                        } catch (ClosedByInterruptException e) {
+                            return;
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                         releaseDatagramPacket(packet);
+                        testTimeout(true);
+                    } else {
+                        testTimeout(false);
                     }
 
                     if (interrupted()) {
@@ -320,10 +367,12 @@ public class RespondFlinger {
 
             private void doJob() {
                 while (true) {
+                    boolean work = true;
                     try {
                         // 接收一个响应
                         DatagramPacket packet = obtainDatagramPacket();
                         packet.setData(packet.getData());
+                        mSocket.setSoTimeout((int) BLOCK_TIMEOUT);
                         mSocket.receive(packet);
 
                         packet.setPort(mPort); // 映射端口
@@ -331,9 +380,12 @@ public class RespondFlinger {
                         queueRespondAndNotify(packet);
                     } catch (ClosedByInterruptException e) {
                         return;
+                    } catch (SocketTimeoutException ignored) {
+                        work = false;
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
+                    testTimeout(work);
 
                     if (interrupted()) {
                         return;

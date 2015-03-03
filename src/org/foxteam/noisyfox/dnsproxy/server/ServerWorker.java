@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.SocketChannel;
 import java.security.SecureRandom;
 import java.util.concurrent.locks.Condition;
@@ -160,6 +161,8 @@ public class ServerWorker implements Runnable {
                     if (count == -1) {
                         return;
                     }
+                } catch (ClosedByInterruptException e) {
+                    return;
                 } catch (IOException e) {
                     e.printStackTrace();
                     return;
@@ -216,6 +219,8 @@ public class ServerWorker implements Runnable {
                     Utils.showVerbose("Respond send! Length:" + frame.getDataLength() + " port:" + frame.getPort());
                     frame.writeToStream(mOut);
                     mOut.flush();
+                } catch (ClosedByInterruptException e) {
+                    return;
                 } catch (IOException e) {
                     e.printStackTrace();
                     return;
