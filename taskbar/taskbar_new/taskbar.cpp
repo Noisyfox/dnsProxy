@@ -82,12 +82,14 @@ BOOL ShowTrayIcon(DWORD dwMessage=NIM_ADD)
 	nid.cbSize = (DWORD)sizeof(NOTIFYICONDATA);
 	nid.hWnd   = hWnd;
 	nid.uID	   = NID_UID;
-	nid.uFlags = NIF_ICON|NIF_MESSAGE;
+	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 	nid.dwInfoFlags=NIIF_INFO;
 	nid.uCallbackMessage = WM_TASKBARNOTIFY;
 	nid.hIcon = LoadIcon(hInst, (LPCTSTR)IDI_SMALL);
 	nid.uVersion = NOTIFYICON_VERSION;
 	lstrcpy(nid.szInfoTitle, szTitle);
+	lstrcpy(nid.szInfo, szBalloon);
+	lstrcpy(nid.szTip, szTooltip);
 	Shell_NotifyIcon(dwMessage, &nid);
 	return TRUE;
 }
