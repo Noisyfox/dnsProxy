@@ -17,7 +17,7 @@ JAVA_HOME=/usr/java/jdk1.7.0_71
 #应用程序的目录
 DNSPROXY_HOME=/root/dnsProxy
 #jsvc所在的目录
-DAEMON_HOME=$DNSPROXY_HOME
+DAEMON_HOME=$DNSPROXY_HOME/jsvc
 #用户
 DNSPROXY_USER=root
 #主类
