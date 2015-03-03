@@ -6,3 +6,8 @@
 *.bsc
 *.sbr
 *.aps
+*.sdf
+*.suo
+*.opensdf
+Debug
+Release
